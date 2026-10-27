@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/application"
+	"github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/application/usecase"
 	dukcapildb "github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/infrastructure/db"
 	dukcapilhttp "github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/infrastructure/http"
 )
@@ -16,13 +16,13 @@ import (
 // New merakit dependency dan mengembalikan mux siap pakai.
 // Alur wiring (luar <- dalam): handler <- usecase <- repo <- pool.
 func New(pool *pgxpool.Pool) *http.ServeMux {
-	// 1. Repo (implementasi interface pakai DB)
-	repo := dukcapildb.NewResidentRepo(pool)
+	// 1. Repo (implementasi outbound port pakai DB)
+	repo := dukcapildb.NewResidentRepository(pool)
 
 	// 2. Usecase (logika) — disuntik repo lewat interface
-	uc := application.New(repo)
+	uc := usecase.NewDukcapilUsecase(repo)
 
-	// 3. Handler (HTTP) — disuntik usecase
+	// 3. Handler (HTTP) — disuntik usecase lewat interface inbound
 	handler := dukcapilhttp.NewHandler(uc)
 
 	// 4. Router + daftar route
