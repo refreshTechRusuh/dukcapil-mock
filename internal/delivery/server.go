@@ -27,7 +27,7 @@ func New(pool *pgxpool.Pool) *http.ServeMux {
 
 	// 4. Router + daftar route
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /internal/dukcapil/verify", handler.Verify)
+	mux.HandleFunc("POST /api/dukcapil/v1/verify", handler.Verify)
 	mux.HandleFunc("GET /sys/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"00000","message":"dukcapil-mock ok","data":{}}`))
