@@ -1,18 +1,17 @@
-// Package apinizer menyediakan envelope response standar lintas service:
-//   { "status", "message", "data" }  (+ "partial" opsional)
-// status "00000" = sukses; selain itu = string kode HTTP ("400","500",...).
-// Bentuk ini identik dengan service lain (event/booking/payment) agar klien
-// memperlakukan semua response seragam.
+// Package apinizer menyediakan envelope response standar service-dashboard:
 //
-// Dukcapil-mock hanya butuh sedikit: Success (200) + FailedBadRequest (400,
-// untuk body JSON rusak). verify yang menghasilkan valid:false TETAP memakai
-// Success — karena "tidak valid" itu DATA, bukan error HTTP.
+//	{ status, message, data }  — status "00000" sukses, string kode HTTP gagal.
+//
+// Pola mengikuti event-service: Success + WriteError (map apperror -> HTTP status).
 package apinizer
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+
+	"github.com/refreshTechRusuh/dukcapil-mock/pkg/apperror"
 )
 
 // Envelope adalah bentuk response tunggal untuk setiap endpoint.
@@ -23,26 +22,51 @@ type Envelope struct {
 	Partial bool   `json:"partial,omitempty"`
 }
 
-// SuccessStatus = kode status aplikasi untuk response sukses.
-const SuccessStatus = "00000"
-
 // Success menulis response 200 OK dengan payload data.
 func Success(w http.ResponseWriter, message string, data any) {
-	writeJSON(w, http.StatusOK, Envelope{
-		Status:  SuccessStatus,
-		Message: message,
-		Data:    data,
-	})
+	writeJSON(w, http.StatusOK, Envelope{Status: "00000", Message: message, Data: data})
 }
 
 // FailedBadRequest menulis response 400 (mis. body JSON tidak bisa di-parse).
-// data diisi objek kosong agar bentuk tetap konsisten.
 func FailedBadRequest(w http.ResponseWriter, message string) {
-	writeJSON(w, http.StatusBadRequest, Envelope{
-		Status:  "400",
-		Message: message,
-		Data:    struct{}{},
-	})
+	writeJSON(w, http.StatusBadRequest, Envelope{Status: "400", Message: message, Data: struct{}{}})
+}
+
+// WriteError memetakan apperror.AppError ke HTTP status + envelope gagal.
+// Error tak terduga (bukan AppError) -> 500 dengan pesan generik.
+func WriteError(w http.ResponseWriter, err error) {
+	var appErr *apperror.AppError
+	if !errors.As(err, &appErr) {
+		slog.Error("unhandled error", "err", err)
+		writeJSON(w, http.StatusInternalServerError, Envelope{
+			Status:  "500",
+			Message: "Terjadi kesalahan pada server",
+			Data:    struct{}{},
+		})
+		return
+	}
+
+	status := mapErrorCode(appErr.Code)
+	writeJSON(w, status, Envelope{Status: httpStatusStr(status), Message: appErr.Message, Data: struct{}{}})
+}
+
+// mapErrorCode memetakan ErrorCode dukcapil ke HTTP status.
+func mapErrorCode(code apperror.ErrorCode) int {
+	switch code {
+	case apperror.ErrValidation:
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+func httpStatusStr(status int) string {
+	switch status {
+	case 400:
+		return "400"
+	default:
+		return "500"
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
