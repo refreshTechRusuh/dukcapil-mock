@@ -9,18 +9,23 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/domain/entity"
 )
 
+// Querier = potongan minimal pgxpool.Pool yang dipakai repository.
+// *pgxpool.Pool memenuhinya (produksi); fake di test memenuhinya (tanpa Postgres).
+type Querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
 // ResidentRepository adalah implementasi IResidentRepository berbasis PostgreSQL.
 type ResidentRepository struct {
-	pool *pgxpool.Pool
+	pool Querier
 }
 
 // NewResidentRepository menyuntik pool koneksi (dibuat di delivery).
-func NewResidentRepository(pool *pgxpool.Pool) *ResidentRepository {
+func NewResidentRepository(pool Querier) *ResidentRepository {
 	return &ResidentRepository{pool: pool}
 }
 
