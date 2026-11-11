@@ -6,8 +6,6 @@ package delivery
 import (
 	"net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/application/usecase"
 	dukcapildb "github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/infrastructure/db"
 	dukcapilhttp "github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/infrastructure/http"
@@ -15,7 +13,7 @@ import (
 
 // New merakit dependency dan mengembalikan mux siap pakai.
 // Alur wiring (luar <- dalam): handler <- usecase <- repo <- pool.
-func New(pool *pgxpool.Pool) *http.ServeMux {
+func New(pool dukcapildb.Querier) *http.ServeMux {
 	// 1. Repo (implementasi outbound port pakai DB)
 	repo := dukcapildb.NewResidentRepository(pool)
 
