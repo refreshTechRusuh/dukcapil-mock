@@ -148,3 +148,39 @@ func TestVerifyRoute_ShouldContinueCallersTrace_ButNotTraceHealthCheck(t *testin
 	assert.Equal(t, "0af7651916cd43dd8448eb211c80319c", spans[0].SpanContext().TraceID().String(),
 		"trace user-service -> dukcapil-mock harus tersambung")
 }
+
+// ---------------------------------------------------------------- keamanan
+
+func TestSecurityHeaders_ShouldBePresent_OnVerifyAndHealthAndNotFound(t *testing.T) {
+	h := New(seeded)
+
+	for name, rr := range map[string]*httptest.ResponseRecorder{
+		"verify 200": verify(h, `{"nik":"3273000000000001","nama":"Budi Santoso","tglLahir":"1990-01-01","namaIbu":"Siti Aminah"}`),
+		"verify 400": verify(h, `{`),
+		"health": func() *httptest.ResponseRecorder {
+			r := httptest.NewRecorder()
+			h.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/sys/ping", nil))
+			return r
+		}(),
+		"404": func() *httptest.ResponseRecorder {
+			r := httptest.NewRecorder()
+			h.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/tidak/ada", nil))
+			return r
+		}(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
+			assert.Equal(t, "default-src 'none'", rr.Header().Get("Content-Security-Policy"))
+			assert.Equal(t, "no-store", rr.Header().Get("Cache-Control"))
+			assert.Empty(t, rr.Header().Get("X-Frame-Options"))
+		})
+	}
+}
+
+func TestVerifyRoute_ShouldReturn413_WhenBodyOverOneMB(t *testing.T) {
+	big := `{"nik":"3273000000000001","nama":"` + strings.Repeat("a", (1<<20)+1) + `"}`
+
+	rr := verify(New(seeded), big)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+}

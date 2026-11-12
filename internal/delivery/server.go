@@ -34,5 +34,7 @@ func New(pool dukcapildb.Querier) http.Handler {
 
 	// Tracing: span per request, melanjutkan trace dari pemanggil (user-service) lewat
 	// header traceparent. Health check dikecualikan.
-	return middleware.OtelMiddleware("dukcapil-mock", "/sys/ping")(mux)
+	// Urutan (luar -> dalam): header keamanan, batas body 1 MB, tracing.
+	traced := middleware.OtelMiddleware("dukcapil-mock", "/sys/ping")(mux)
+	return middleware.SecurityHeaders(middleware.MaxBody(0)(traced))
 }
