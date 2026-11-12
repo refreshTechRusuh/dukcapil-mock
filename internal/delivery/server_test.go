@@ -10,6 +10,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // residentDB = Querier tiruan berisi satu penduduk; menjalankan route → handler →
@@ -117,4 +122,29 @@ func TestRouting_ShouldReject_UnknownRoutesAndWrongMethods(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, do(http.MethodGet, "/tidak/ada"))
 	assert.Equal(t, http.StatusMethodNotAllowed, do(http.MethodGet, "/api/dukcapil/v1/verify"))
 	assert.Equal(t, http.StatusMethodNotAllowed, do(http.MethodPost, "/sys/ping"))
+}
+
+func TestVerifyRoute_ShouldContinueCallersTrace_ButNotTraceHealthCheck(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+	prevTP, prevProp := otel.GetTracerProvider(), otel.GetTextMapPropagator()
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() {
+		otel.SetTracerProvider(prevTP)
+		otel.SetTextMapPropagator(prevProp)
+		_ = tp.Shutdown(context.Background())
+	})
+	h := New(seeded)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/dukcapil/v1/verify",
+		strings.NewReader(`{"nik":"3273000000000001","nama":"Budi Santoso","tglLahir":"1990-01-01","namaIbu":"Siti Aminah"}`))
+	req.Header.Set("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/sys/ping", nil))
+
+	spans := rec.Ended()
+	require.Len(t, spans, 1, "hanya verify yang di-trace")
+	assert.Equal(t, "0af7651916cd43dd8448eb211c80319c", spans[0].SpanContext().TraceID().String(),
+		"trace user-service -> dukcapil-mock harus tersambung")
 }

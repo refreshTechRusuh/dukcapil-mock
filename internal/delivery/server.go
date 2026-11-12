@@ -9,11 +9,12 @@ import (
 	"github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/application/usecase"
 	dukcapildb "github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/infrastructure/db"
 	dukcapilhttp "github.com/refreshTechRusuh/dukcapil-mock/internal/dukcapil/infrastructure/http"
+	"github.com/refreshTechRusuh/dukcapil-mock/pkg/middleware"
 )
 
-// New merakit dependency dan mengembalikan mux siap pakai.
+// New merakit dependency dan mengembalikan handler siap pakai (mux dibungkus tracing).
 // Alur wiring (luar <- dalam): handler <- usecase <- repo <- pool.
-func New(pool dukcapildb.Querier) *http.ServeMux {
+func New(pool dukcapildb.Querier) http.Handler {
 	// 1. Repo (implementasi outbound port pakai DB)
 	repo := dukcapildb.NewResidentRepository(pool)
 
@@ -31,5 +32,7 @@ func New(pool dukcapildb.Querier) *http.ServeMux {
 		_, _ = w.Write([]byte(`{"status":"00000","message":"dukcapil-mock ok","data":{}}`))
 	})
 
-	return mux
+	// Tracing: span per request, melanjutkan trace dari pemanggil (user-service) lewat
+	// header traceparent. Health check dikecualikan.
+	return middleware.OtelMiddleware("dukcapil-mock", "/sys/ping")(mux)
 }
