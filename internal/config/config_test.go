@@ -57,14 +57,14 @@ func TestSetupLogger_ShouldApplyLevelAndFormat(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(prev) })
 	ctx := context.Background()
 
-	for level, min := range map[string]slog.Level{
+	for level, minLevel := range map[string]slog.Level{
 		"debug": slog.LevelDebug, "info": slog.LevelInfo, "warn": slog.LevelWarn,
 		"error": slog.LevelError, "xxx": slog.LevelInfo,
 	} {
 		for _, format := range []string{"json", "text"} {
 			SetupLogger(LogConfig{Level: level, Format: format})
 			for _, l := range []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn, slog.LevelError} {
-				assert.Equal(t, l >= min, slog.Default().Enabled(ctx, l), "level=%s format=%s cek=%v", level, format, l)
+				assert.Equal(t, l >= minLevel, slog.Default().Enabled(ctx, l), "level=%s format=%s cek=%v", level, format, l)
 			}
 		}
 	}
