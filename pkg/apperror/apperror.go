@@ -45,4 +45,6 @@ func (e *AppError) Unwrap() error { return e.cause }
 // ---- Constructor helpers -----------------------------------------------
 
 func Validation(msg string) *AppError { return New(ErrValidation, msg) }
-func Internal(cause error) *AppError  { return Wrap(ErrInternal, "Terjadi kesalahan pada server", cause) }
+func Internal(cause error) *AppError {
+	return Wrap(ErrInternal, "Terjadi kesalahan pada server", cause)
+}
